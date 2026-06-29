@@ -1,0 +1,70 @@
+{
+    "name": "particle-academy/fancy-mlm",
+    "description": "Framework-agnostic multi-level referral / network-marketing engine for agentic apps. Pure PHP core with an optional Laravel 11-13 bridge and fun-lab / catalog / fms integration.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "mlm",
+        "referral",
+        "network-marketing",
+        "downline",
+        "commissions",
+        "agentic",
+        "particle-academy"
+    ],
+    "homepage": "https://github.com/Particle-Academy/fancy-mlm-php",
+    "support": {
+        "issues": "https://github.com/Particle-Academy/fancy-mlm-php/issues",
+        "source": "https://github.com/Particle-Academy/fancy-mlm-php"
+    },
+    "authors": [
+        {
+            "name": "Particle Academy",
+            "homepage": "https://github.com/Particle-Academy"
+        }
+    ],
+    "require": {
+        "php": "^8.2"
+    },
+    "require-dev": {
+        "pestphp/pest": "^3.0|^4.0",
+        "phpunit/phpunit": "^10.0|^11.0|^12.0",
+        "orchestra/testbench": "^9.0|^10.0|^11.0"
+    },
+    "suggest": {
+        "illuminate/support": "Only needed when using the optional Laravel service provider, facade, models, and fun-lab listener. Compatible with 11.x through 13.x. The core FancyMlm engine requires zero framework.",
+        "particle-academy/laravel-fun-lab": "Enables the gamified referral loop — award upline members when a referral acts.",
+        "particle-academy/laravel-catalog": "Anchors monetary commissions to real catalog sales (Cashier webhooks + Stripe metadata).",
+        "particle-academy/laravel-fms": "Models referral tiers as feature groups and scales bonus caps via resource-feature limits."
+    },
+    "autoload": {
+        "psr-4": {
+            "FancyMlm\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "FancyMlm\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "pest"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "FancyMlm\\Laravel\\MlmServiceProvider"
+            ],
+            "aliases": {
+                "Mlm": "FancyMlm\\Laravel\\Facades\\Mlm"
+            }
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    }
+}
