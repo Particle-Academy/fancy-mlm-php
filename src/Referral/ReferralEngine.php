@@ -7,16 +7,17 @@ namespace FancyMlm\Referral;
 use FancyMlm\Contracts\MemberRepository;
 use FancyMlm\Contracts\RewardSink;
 use FancyMlm\Plan\CompensationPlan;
+use FancyMlm\Tree\TreeFactory;
 
 /**
- * The MVP engine: distribute a referral reward up the sponsor (enroller) tree
- * from the member who acted. For each upline level the reward is
+ * Distribute a referral reward from the member who acted, up the tree the plan
+ * configures — unilevel (sponsor tree), binary or matrix (placement tree). The
+ * plan's {@see TreeStrategy} does the walk; each level pays
  *
  *     amount = baseAmount × levelFactor(level) × tierMultiplier(uplineTier)
  *
- * Dynamic compression skips inactive uplines (they don't consume a level), and a
- * visited-set guards against corrupt cyclic sponsor chains. Each computed reward
- * is handed to the {@see RewardSink}; the full list is also returned.
+ * with dynamic compression + a cycle guard. Every computed reward is handed to
+ * the {@see RewardSink}; the full list is also returned.
  *
  * Reward "currency" is the sink's concern — fun-lab points (engagement) or a
  * commission ledger (monetary). Recursion guarding (an MLM-awarded reward
@@ -41,54 +42,11 @@ final class ReferralEngine
             return [];
         }
 
-        $rewards = [];
-        $maxLevels = $this->plan->levels();
-        $visited = [$origin->id => true];
-        $currentId = $origin->sponsorId;
-        $level = 0;
+        $rewards = TreeFactory::for($this->plan)
+            ->distribute($origin, $baseAmount, $this->plan, $this->members, $context);
 
-        while ($currentId !== null && $level < $maxLevels) {
-            if (isset($visited[$currentId])) {
-                break; // cyclic sponsor chain — stop rather than loop forever
-            }
-            $visited[$currentId] = true;
-
-            $upline = $this->members->find($currentId);
-            if ($upline === null) {
-                break;
-            }
-
-            if (! $upline->active) {
-                if ($this->plan->compression) {
-                    $currentId = $upline->sponsorId; // skip without consuming a level
-                    continue;
-                }
-                break; // no compression: an inactive member blocks the chain
-            }
-
-            $level++;
-            $factor = $this->plan->levelFactor($level);
-            $multiplier = $this->plan->tierMultiplier($upline->tier);
-            $amount = $baseAmount * $factor * $multiplier;
-
-            if ($amount > 0.0) {
-                $reward = new RewardComputation(
-                    originMemberId: $origin->id,
-                    recipientMemberId: $upline->id,
-                    level: $level,
-                    metric: $this->plan->metric,
-                    baseAmount: $baseAmount,
-                    tier: $upline->tier,
-                    tierMultiplier: $multiplier,
-                    levelFactor: $factor,
-                    amount: $amount,
-                    context: $context,
-                );
-                $this->sink->pay($reward);
-                $rewards[] = $reward;
-            }
-
-            $currentId = $upline->sponsorId;
+        foreach ($rewards as $reward) {
+            $this->sink->pay($reward);
         }
 
         return $rewards;

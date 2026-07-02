@@ -8,11 +8,15 @@ the Fancy stack: [fun-lab](https://github.com/Particle-Academy/laravel-fun-lab)
 (commerce), and [fms](https://github.com/Particle-Academy/laravel-feature-management-system)
 (tiers + metered bonuses).
 
-> **MVP (v0.x):** Unilevel referral bonuses — a reward flows up the sponsor tree,
+> **v0.2:** Configurable **downline trees** — `unilevel` (unlimited frontline, up
+> the sponsor tree), `binary` (two legs, up the placement tree), and `matrix`
+> (forced W×depth, up the placement tree). A reward flows up the chosen tree,
 > decaying per level and scaling by each upline member's tier, with dynamic
-> compression. The gamified fun-lab loop is wired. Binary/matrix trees, monetary
-> commission ledgers, catalog/fms bridges, and the Node mirror + React UI are on
-> the roadmap (see [`.ai/plans/fancy-mlm.md`](https://github.com/Particle-Academy/fancy.agi)).
+> compression. The gamified fun-lab loop is wired, and the Node mirror
+> (`@particle-academy/fancy-mlm`) + React UI (`@particle-academy/fancy-mlm-ui`)
+> track the same plan shape. Monetary commission ledgers and the catalog/fms
+> bridges are on the roadmap (see
+> [`.ai/plans/fancy-mlm.md`](https://github.com/Particle-Academy/fancy.agi)).
 
 ## Install
 
@@ -48,7 +52,24 @@ $rewards = $engine->distribute(originMemberId: 'm-42', baseAmount: 100.0);
 
 `MemberRepository` (`find(id)`) and `RewardSink` (`pay(RewardComputation)`) are
 the only things you implement. `CompensationPlan` is JSON — the same shape the
-forthcoming Node mirror loads, so both produce identical rewards.
+Node mirror (`@particle-academy/fancy-mlm`) loads, so both produce identical rewards.
+
+### Downline trees
+
+`tree` selects the shape the reward climbs — the engine walks it identically, the
+plan just points it at a different parent chain:
+
+```php
+$unilevel = CompensationPlan::fromArray(['tree' => 'unilevel', 'levelFactors' => [1.0, 0.5, 0.25]]);
+$binary   = CompensationPlan::fromArray(['tree' => 'binary',   'levelFactors' => [1.0, 0.5, 0.25]]);
+$matrix   = CompensationPlan::fromArray(['tree' => 'matrix', 'width' => 3, 'levelFactors' => [1.0, 0.5, 0.25]]);
+```
+
+| tree | climbs | frontline | placement |
+|---|---|---|---|
+| `unilevel` | sponsor tree (`sponsor_id`) | unlimited | — |
+| `binary` | placement tree (`placement_id`, falls back to `sponsor_id`) | 2 | spillover |
+| `matrix` | placement tree (`placement_id`, falls back to `sponsor_id`) | `width` | forced fill |
 
 ## Laravel
 
@@ -81,9 +102,10 @@ Tiers map naturally onto **fms feature groups**, and a tier's scaling cap onto a
 ## Data model
 
 `mlm_members` carries two parent pointers so one schema serves every tree type:
-`sponsor_id` (the enroller tree — who referred you, drives referral/matching) and
-`placement_id` (binary/matrix placement, for future tree types). Unilevel uses
-only the sponsor tree.
+`sponsor_id` (the enroller tree — who referred you, drives unilevel + matching) and
+`placement_id` (binary/matrix placement after spillover). Unilevel walks the
+sponsor tree; binary/matrix walk the placement tree, falling back to `sponsor_id`
+when a member has no distinct placement.
 
 ## Compliance
 

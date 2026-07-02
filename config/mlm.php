@@ -19,11 +19,18 @@ return [
     'reward_source' => 'mlm',
 
     /*
-    | The compensation plan (the same shape the Node mirror loads). MVP: a
-    | Unilevel referral bonus that decays per level and scales by the upline
-    | member's tier.
+    | The compensation plan (the same shape the Node mirror loads). A referral
+    | bonus that decays per level and scales by the upline member's tier.
+    |
+    | `tree` selects the downline shape the reward climbs:
+    |   - 'unilevel' — unlimited frontline, walks the SPONSOR (enroller) tree
+    |   - 'binary'   — two legs per node, walks the PLACEMENT tree (frontline 2)
+    |   - 'matrix'   — forced W×depth, walks the PLACEMENT tree (frontline = width)
+    | `width` sizes the matrix frontline (ignored by unilevel/binary).
     */
     'plan' => [
+        'tree' => 'unilevel',
+        'width' => 0,
         'metric' => 'referral-bonus',
         'levelFactors' => [1.0, 0.5, 0.25],
         'tiers' => [
