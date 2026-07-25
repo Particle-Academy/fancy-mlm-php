@@ -5,7 +5,7 @@ network-marketing engine** for agentic apps. A pure-PHP core (zero framework in
 `require`) with an optional **Laravel bridge** and first-class integration with
 the Fancy stack: [fun-lab](https://github.com/Particle-Academy/laravel-fun-lab)
 (gamified rewards), [catalog](https://github.com/Particle-Academy/laravel-catalog)
-(commerce), and [fms](https://github.com/Particle-Academy/laravel-feature-management-system)
+(commerce), and [fms](https://github.com/Particle-Academy/laravel-fms)
 (tiers + metered bonuses).
 
 > **v0.2:** Configurable **downline trees** — `unilevel` (unlimited frontline, up
