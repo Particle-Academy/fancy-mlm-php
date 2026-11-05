@@ -8,10 +8,14 @@ use DateTimeImmutable;
 use FancyMlm\Attribution\Exceptions\InvalidInput;
 use FancyMlm\Attribution\Exceptions\SponsorImmutable;
 use FancyMlm\Contracts\AttributionStore;
+use FancyMlm\Contracts\SponsorCorrectionStore;
 
 /** In-memory {@see AttributionStore} for plain-PHP hosts and tests. */
-final class ArrayAttributionStore implements AttributionStore
+final class ArrayAttributionStore implements AttributionStore, SponsorCorrectionStore
 {
+    /** @var list<SponsorCorrection> append-only */
+    private array $corrections = [];
+
     /** @var array<string,?string> member id => sponsor id */
     private array $members = [];
 
@@ -130,13 +134,31 @@ final class ArrayAttributionStore implements AttributionStore
         $this->attributions[$attribution->memberId] = $attribution;
     }
 
+    public function applySponsorCorrection(SponsorCorrection $correction): SponsorCorrection
+    {
+        $current = $this->members[$correction->memberId] ?? null;
+        if ($current !== $correction->fromSponsorId) {
+            throw SponsorImmutable::for($correction->memberId, $current, $correction->toSponsorId);
+        }
+        $saved = $correction->withId((string) (count($this->corrections) + 1));
+        $this->corrections[] = $saved;
+        $this->members[$correction->memberId] = $correction->toSponsorId;
+
+        return $saved;
+    }
+
+    public function sponsorCorrections(string $memberId): array
+    {
+        return array_values(array_filter($this->corrections, static fn (SponsorCorrection $c): bool => $c->memberId === $memberId));
+    }
+
     public function transaction(callable $fn): mixed
     {
-        $snapshot = [$this->members, $this->attributions];
+        $snapshot = [$this->members, $this->attributions, $this->corrections];
         try {
             return $fn();
         } catch (\Throwable $e) {
-            [$this->members, $this->attributions] = $snapshot;
+            [$this->members, $this->attributions, $this->corrections] = $snapshot;
             throw $e;
         }
     }

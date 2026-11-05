@@ -199,6 +199,66 @@ The database layer is a `BEFORE UPDATE` trigger: `RAISE(ABORT)` on SQLite,
 user cannot create triggers, set `mlm.attribution.database_guard` to `false`
 before migrating; the code layers still apply.
 
+### Correcting a sponsor set wrong (audited)
+
+A support ticket or a fraud finding can show that a sponsor was set wrong. There
+is exactly one way to change it, and it is a separate method, never a flag on
+the paths above, which stay as locked as before:
+
+```php
+use FancyMlm\Attribution\SponsorCorrectionRequest;
+use FancyMlm\Laravel\GateCorrectionAuthorizer;
+
+// 1. You decide who may do it. Until you define this Gate, every correction is refused.
+Gate::define(GateCorrectionAuthorizer::ABILITY, // 'fancy-mlm.correct-sponsor'
+    fn (User $user, SponsorCorrectionRequest $request) => $user->can('manage-network'));
+
+// 2. Correct it, with a reason and the acting user's id.
+$correction = Mlm::correctSponsor($memberId, $newSponsorId, 'Ticket 4411: signed up through the wrong link', (string) auth()->id());
+
+Mlm::sponsorCorrections($memberId); // the audit history, oldest first
+```
+
+- **Default deny.** If `fancy-mlm.correct-sponsor` is not defined with
+  `Gate::define()`, the method throws `CorrectionUnauthorized`, even when a
+  `Gate::before()` hook would allow every other ability. The Gate is asked as
+  the signed-in user; for a console command or queued job, make the callback's
+  user parameter nullable and decide on `$request->actorId`.
+- **A reason is required**: non-empty after trimming, at most 1000 UTF-8 bytes,
+  stored trimmed. The actor id is required too, at most 191 bytes.
+- **Still refused:** self-referral, a cycle (moving a member under their own
+  downline), a member or target that does not exist, a member with no sponsor
+  yet (use `assignSponsor()`), and the sponsor they already have. The member's
+  own downline moves with them.
+- **Audit row.** Each correction appends one row to `mlm_sponsor_corrections`:
+  member, from-sponsor, to-sponsor, reason, actor, time. **The table is
+  append-only.** The package has no way to update or delete a row, and with the
+  database guard on, triggers refuse `UPDATE` and `DELETE` (and `TRUNCATE` on
+  PostgreSQL). Rows are kept forever by design, so do not put more personal
+  data in a reason than the ticket needs.
+- **Event.** `FancyMlm\Laravel\Events\SponsorCorrected` is dispatched after the
+  transaction commits. Listen to it to notify the members involved, recompute
+  commissions, or copy the row to your own log.
+
+**How the database lets only this through.** The trigger still refuses any
+change to a set `sponsor_id`, with one exception: the change that the member's
+**latest** audit row names, from exactly the current sponsor to exactly the new
+one. `correctSponsor()` writes that row and then updates the sponsor in the same
+transaction, so a failed update rolls the row back. A raw `UPDATE` with no row
+is refused, and so is a raw `UPDATE` that tries to reuse an old row: once a
+member is corrected again, the newer row is the latest, and the older one can
+never match. The same rule is why the table must be append-only, since deleting
+the latest row would make an older one usable again.
+
+The guarantee is "no sponsor changes without an audit row", not "only this
+package can change a sponsor". Someone with raw write access could insert a row
+and then update, and they would leave exactly the audit trail this is for.
+Someone with DDL rights can drop the triggers. No trigger can stop that, and
+MySQL's `TRUNCATE` bypasses triggers too.
+
+SQLite is what this package's suite runs. The MySQL/MariaDB and PostgreSQL
+triggers follow the same rule, but the suite does not run them.
+
 ### Retention
 
 ```php

@@ -7,6 +7,7 @@ namespace FancyMlm\Laravel;
 use FancyMlm\Attribution\AttributionPolicy;
 use FancyMlm\Attribution\ReferralProgram;
 use FancyMlm\Attribution\SessionHasher;
+use FancyMlm\Attribution\SponsorCorrectionRequest;
 use FancyMlm\Contracts\AttributionStore;
 use FancyMlm\Contracts\MemberRepository;
 use FancyMlm\Laravel\Console\PruneScansCommand;
@@ -88,6 +89,8 @@ class MlmServiceProvider extends ServiceProvider
             $app->make(AttributionPolicy::class),
             null,
             (int) $app['config']->get('mlm.attribution.code_length', 16),
+            // Resolved on use, so the rest of the program never needs a Gate.
+            static fn (SponsorCorrectionRequest $request): bool => $app->make(GateCorrectionAuthorizer::class)($request),
         ));
     }
 

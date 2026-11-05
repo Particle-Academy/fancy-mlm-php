@@ -12,8 +12,10 @@ use FancyMlm\Attribution\Attribution;
 use FancyMlm\Attribution\Exceptions\SponsorImmutable;
 use FancyMlm\Attribution\ReferralCode;
 use FancyMlm\Attribution\Scan;
+use FancyMlm\Attribution\SponsorCorrection;
 use FancyMlm\Attribution\StatRow;
 use FancyMlm\Contracts\AttributionStore;
+use FancyMlm\Contracts\SponsorCorrectionStore;
 use FancyMlm\Laravel\Models\Attribution as AttributionModel;
 use FancyMlm\Laravel\Models\Member as MemberModel;
 use FancyMlm\Laravel\Models\ReferralCode as CodeModel;
@@ -25,7 +27,7 @@ use Illuminate\Database\Query\Builder;
  * `Y-m-d H:i:s` in DATETIME columns, which compare correctly as strings on
  * SQLite and natively on MySQL and PostgreSQL.
  */
-class EloquentAttributionStore implements AttributionStore
+class EloquentAttributionStore implements AttributionStore, SponsorCorrectionStore
 {
     private const FORMAT = 'Y-m-d H:i:s';
 
@@ -182,6 +184,63 @@ class EloquentAttributionStore implements AttributionStore
             'model' => $attribution->model,
             'attributed_at' => self::fmt($attribution->attributedAt),
         ]);
+    }
+
+    /**
+     * Audit row first, then one conditional UPDATE (`... WHERE sponsor_id =
+     * from`), in one transaction. The database guard admits the UPDATE only
+     * because the row it names is now the member's latest; if the sponsor moved
+     * underneath us, no row updates, we throw, and the audit row rolls back.
+     */
+    public function applySponsorCorrection(SponsorCorrection $correction): SponsorCorrection
+    {
+        $model = new MemberModel();
+        $connection = $model->getConnection();
+
+        return $connection->transaction(function () use ($connection, $model, $correction): SponsorCorrection {
+            $id = $connection->table(self::correctionsTable())->insertGetId([
+                'member_id' => $correction->memberId,
+                'from_sponsor_id' => $correction->fromSponsorId,
+                'to_sponsor_id' => $correction->toSponsorId,
+                'reason' => $correction->reason,
+                'actor_id' => $correction->actorId,
+                'corrected_at' => self::fmt($correction->correctedAt),
+            ]);
+
+            $affected = $model->newQuery()->toBase()
+                ->where($model->getKeyName(), $correction->memberId)
+                ->where('sponsor_id', $correction->fromSponsorId)
+                ->update(['sponsor_id' => $correction->toSponsorId, $model->getUpdatedAtColumn() => self::fmt(new DateTimeImmutable())]);
+
+            if ($affected === 0) {
+                throw SponsorImmutable::for($correction->memberId, $this->sponsorOf($correction->memberId), $correction->toSponsorId);
+            }
+
+            return $correction->withId((string) $id);
+        });
+    }
+
+    public function sponsorCorrections(string $memberId): array
+    {
+        return (new MemberModel())->getConnection()->table(self::correctionsTable())
+            ->where('member_id', $memberId)
+            ->orderBy('id')
+            ->get()
+            ->map(static fn (object $row): SponsorCorrection => new SponsorCorrection(
+                (string) $row->id,
+                (string) $row->member_id,
+                (string) $row->from_sponsor_id,
+                (string) $row->to_sponsor_id,
+                (string) $row->reason,
+                (string) $row->actor_id,
+                self::parse($row->corrected_at),
+            ))
+            ->all();
+    }
+
+    private static function correctionsTable(): string
+    {
+        return (string) config('mlm.tables.sponsor_corrections', 'mlm_sponsor_corrections');
     }
 
     public function transaction(callable $fn): mixed

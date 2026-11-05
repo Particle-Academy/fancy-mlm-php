@@ -15,6 +15,18 @@ upgrading.
 
 ## [Unreleased]
 
+### Added
+
+- **An audited admin override for a sponsor set wrong:** `Mlm::correctSponsor($memberId, $toSponsorId, $reason, $actorId)`, with `ReferralProgram::correctSponsor()` underneath. It is a separate method, not a flag. `assignSponsor()`, attribution, the `Member` model and raw SQL stay exactly as locked as 0.4.0. It requires a reason (non-empty after trimming, at most 1000 UTF-8 bytes) and an actor id. It still refuses self-referral, cycles, unknown members, a member with no sponsor yet, and the sponsor already set.
+- **Authorization is yours, and the default is deny.** Define the `fancy-mlm.correct-sponsor` Gate (`GateCorrectionAuthorizer::ABILITY`). Until you do, every correction throws `CorrectionUnauthorized`, even if a `Gate::before()` hook allows everything else. Plain-PHP hosts pass an authorizer closure as `ReferralProgram`'s sixth constructor argument. Only a strict `true` authorizes.
+- **`mlm_sponsor_corrections`: an append-only audit table** recording who, when, member, from-sponsor, to-sponsor and reason. The package has no update or delete for it. With `mlm.attribution.database_guard` on, triggers refuse `UPDATE` and `DELETE` (and `TRUNCATE` on PostgreSQL). `Mlm::sponsorCorrections($memberId)` reads the history.
+- **The sponsor trigger admits only the audited change.** A new migration replaces the 0.4.0 trigger with one that refuses any change to a set `sponsor_id` except the one the member's latest audit row names (exact from, exact to). An unaudited raw `UPDATE` is still refused, and so is a replay of an older row. Rolling the migration back restores the 0.4.0 trigger exactly. SQLite is tested. MySQL/MariaDB and PostgreSQL are written to the same rule but are not run by this suite.
+- `FancyMlm\Laravel\Events\SponsorCorrected`, dispatched after commit.
+- `FancyMlm\Contracts\SponsorCorrectionStore`, a separate optional interface implemented by both shipped stores. Your own `AttributionStore` keeps compiling unchanged; `correctSponsor()` refuses with a `LogicException` until it implements this interface too.
+- A shared fixture, `tests/fixtures/sponsor-correction.json` (23 rows), carried byte-identically by `@particle-academy/fancy-mlm`. The Eloquent store runs the same rows against SQLite with the triggers installed.
+
+  **What you must do:** nothing, unless you want the override. `php artisan migrate` adds the table and swaps the trigger. If you published the migrations (`mlm-migrations`), publish again to pick up the two new ones. If you published the config, add `tables.sponsor_corrections`; the default applies until you do. No existing behaviour changed.
+
 ## [0.4.0] - 2026-11-04
 
 ### Added

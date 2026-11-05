@@ -12,6 +12,8 @@ return [
         'referral_codes' => 'mlm_referral_codes',
         'referral_scans' => 'mlm_referral_scans',
         'attributions' => 'mlm_attributions',
+        // Append-only audit trail of Mlm::correctSponsor().
+        'sponsor_corrections' => 'mlm_sponsor_corrections',
     ],
 
     /*
@@ -47,8 +49,10 @@ return [
         'session_key' => env('MLM_SESSION_HASH_KEY'),
 
         // Install a database trigger that refuses any change to a set
-        // sponsor_id (SQLite, MySQL/MariaDB, PostgreSQL). Turn off only if your
-        // database user cannot create triggers; the model guard still applies.
+        // sponsor_id (SQLite, MySQL/MariaDB, PostgreSQL), except the one an
+        // audit row from Mlm::correctSponsor() names, and triggers that make
+        // that audit table append-only. Turn off only if your database user
+        // cannot create triggers; the code guards still apply.
         'database_guard' => true,
     ],
 

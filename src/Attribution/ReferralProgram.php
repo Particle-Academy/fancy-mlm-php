@@ -7,10 +7,15 @@ namespace FancyMlm\Attribution;
 use Closure;
 use DateTimeImmutable;
 use DateTimeZone;
+use FancyMlm\Attribution\Exceptions\CorrectionUnauthorized;
 use FancyMlm\Attribution\Exceptions\InvalidInput;
+use FancyMlm\Attribution\Exceptions\SelfReferral;
+use FancyMlm\Attribution\Exceptions\SponsorCycle;
 use FancyMlm\Attribution\Exceptions\UnknownMember;
 use FancyMlm\Contracts\AttributionStore;
+use FancyMlm\Contracts\SponsorCorrectionStore;
 use JsonException;
+use LogicException;
 
 /**
  * Referral codes, scan logging, scan-to-signup attribution and stats, over an
@@ -30,13 +35,19 @@ final class ReferralProgram
     /** @var Closure():DateTimeImmutable */
     private readonly Closure $clock;
 
-    /** @param (Closure():DateTimeImmutable)|null $clock */
+    /**
+     * @param (Closure():DateTimeImmutable)|null $clock
+     * @param (Closure(SponsorCorrectionRequest):mixed)|null $authorizeCorrection
+     *        Decides {@see correctSponsor()}. Only a strict `true` authorizes;
+     *        null (the default) refuses every correction.
+     */
     public function __construct(
         private readonly AttributionStore $store,
         private readonly SessionHasher $hasher,
         private readonly AttributionPolicy $policy = new AttributionPolicy(),
         ?Closure $clock = null,
         private readonly int $codeLength = ReferralCodes::DEFAULT_LENGTH,
+        private readonly ?Closure $authorizeCorrection = null,
     ) {
         $this->clock = $clock ?? static fn (): DateTimeImmutable => new DateTimeImmutable('now', new DateTimeZone('UTC'));
     }
@@ -178,6 +189,72 @@ final class ReferralProgram
         if ($needed) {
             $this->store->assignSponsor($memberId, $sponsorId);
         }
+    }
+
+    /**
+     * The audited admin override: change a sponsor that is already set, after
+     * a support ticket or a fraud finding. It is the ONLY way to do so, and it
+     * is never reachable from {@see assignSponsor()} or {@see attributeSignup()}.
+     *
+     * Checks, in this order (the JS twin keeps the same order): the reason,
+     * the actor, authorization (default deny), that both members exist, that
+     * the member has a sponsor to correct, that the target differs from it,
+     * self-referral, and cycles. Then the store appends the audit row and moves
+     * the sponsor in one transaction.
+     *
+     * @throws InvalidInput for a missing or oversized reason or actor, a member with no sponsor, or the same sponsor
+     * @throws Exceptions\CorrectionUnauthorized unless the authorizer returned exactly true
+     * @throws UnknownMember|Exceptions\SelfReferral|Exceptions\SponsorCycle
+     */
+    public function correctSponsor(string $memberId, string $toSponsorId, string $reason, string $actorId): SponsorCorrection
+    {
+        $store = $this->store;
+        if (! $store instanceof SponsorCorrectionStore) {
+            throw new LogicException('fancy-mlm: this AttributionStore cannot record sponsor corrections; implement '.SponsorCorrectionStore::class.'.');
+        }
+
+        $reason = SponsorCorrection::normalizeReason($reason);
+        SponsorCorrection::assertActor($actorId);
+
+        $request = new SponsorCorrectionRequest($memberId, $toSponsorId, $reason, $actorId);
+        if ($this->authorizeCorrection === null || ($this->authorizeCorrection)($request) !== true) {
+            throw CorrectionUnauthorized::for($memberId);
+        }
+
+        return $store->transaction(function () use ($store, $memberId, $toSponsorId, $reason, $actorId): SponsorCorrection {
+            foreach ([$memberId, $toSponsorId] as $id) {
+                if (! $store->memberExists($id)) {
+                    throw UnknownMember::for($id);
+                }
+            }
+            $current = $store->sponsorOf($memberId);
+            if ($current === null) {
+                throw new InvalidInput('memberId', "Member {$memberId} has no sponsor to correct; set one with assignSponsor().");
+            }
+            if ($current === $toSponsorId) {
+                throw new InvalidInput('toSponsorId', "Member {$memberId} is already sponsored by {$toSponsorId}.");
+            }
+            if ($memberId === $toSponsorId) {
+                throw SelfReferral::for($memberId);
+            }
+            if (SponsorRules::wouldCycle($memberId, $toSponsorId, fn (string $id): ?string => $store->sponsorOf($id))) {
+                throw SponsorCycle::for($memberId, $toSponsorId);
+            }
+
+            return $store->applySponsorCorrection(
+                new SponsorCorrection(null, $memberId, $current, $toSponsorId, $reason, $actorId, $this->now()),
+            );
+        });
+    }
+
+    /**
+     * Every audited correction of a member, oldest first.
+     *
+     * @return list<SponsorCorrection>
+     */
+    public function sponsorCorrections(string $memberId): array
+    {
+        return $this->store instanceof SponsorCorrectionStore ? $this->store->sponsorCorrections($memberId) : [];
     }
 
     /**

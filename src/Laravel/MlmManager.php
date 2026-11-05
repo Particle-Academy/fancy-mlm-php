@@ -9,7 +9,9 @@ use FancyMlm\Attribution\AttributionDecision;
 use FancyMlm\Attribution\ReferralCode;
 use FancyMlm\Attribution\ReferralProgram;
 use FancyMlm\Attribution\ScanResult;
+use FancyMlm\Attribution\SponsorCorrection;
 use FancyMlm\Attribution\StatRow;
+use FancyMlm\Laravel\Events\SponsorCorrected;
 use FancyMlm\Plan\CompensationPlan;
 use Illuminate\Container\Container;
 use Illuminate\Http\Request;
@@ -105,6 +107,32 @@ class MlmManager
     public function assignSponsor(string $memberId, string $sponsorId): void
     {
         $this->referrals()->assignSponsor($memberId, $sponsorId);
+    }
+
+    /**
+     * The audited admin override: change a sponsor that is already set, after
+     * a support ticket or a fraud finding. Requires a reason and the acting
+     * user's id, is refused unless the host's Gate
+     * {@see GateCorrectionAuthorizer::ABILITY} allows it (undefined = deny),
+     * refuses self-referral, cycles and unknown members, and appends one row
+     * to `mlm_sponsor_corrections`. Dispatches {@see SponsorCorrected}.
+     */
+    public function correctSponsor(string $memberId, string $toSponsorId, string $reason, string $actorId): SponsorCorrection
+    {
+        $correction = $this->referrals()->correctSponsor($memberId, $toSponsorId, $reason, $actorId);
+        Container::getInstance()->make('events')->dispatch(new SponsorCorrected($correction));
+
+        return $correction;
+    }
+
+    /**
+     * Every audited correction of a member, oldest first.
+     *
+     * @return list<SponsorCorrection>
+     */
+    public function sponsorCorrections(string $memberId): array
+    {
+        return $this->referrals()->sponsorCorrections($memberId);
     }
 
     /**
