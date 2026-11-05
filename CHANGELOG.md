@@ -15,6 +15,8 @@ upgrading.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-04
+
 ### Added
 
 - **Referral codes, scan logging, attribution and stats.** `Mlm::issueCode()`, `revokeCode()`, `recordScan()` / `recordScanFromRequest()`, `attributeSignup()` / `attributeSignupFromRequest()`, `assignSponsor()` and `stats()`, backed by a framework-free `FancyMlm\Attribution\ReferralProgram` over an `AttributionStore` port (Eloquent and in-memory implementations ship). Codes are 80-bit CSPRNG strings with a host-defined scope (an opaque string or a tuple), status and optional expiry. Scans store an HMAC-SHA256 session hash and only the context you pass: **never an IP, a user agent or a raw session id**. Attribution is first touch by default over a 30-day window, refuses self-referral and cycles, and ignores revoked or expired codes. Stats per code, scope or member over a range in two queries.
