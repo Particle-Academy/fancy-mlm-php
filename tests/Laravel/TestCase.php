@@ -31,6 +31,8 @@ abstract class TestCase extends Orchestra
             'compression' => true,
             'defaultTier' => 'default',
         ]);
+        $app['config']->set('app.key', 'base64:'.base64_encode(str_repeat('k', 32)));
+
         // No fun-lab in the test harness — exercise the wiring with a Null/recording sink.
         $app['config']->set('mlm.fun_lab.enabled', false);
     }

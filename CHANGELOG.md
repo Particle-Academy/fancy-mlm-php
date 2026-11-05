@@ -15,6 +15,20 @@ upgrading.
 
 ## [Unreleased]
 
+### Added
+
+- **Referral codes, scan logging, attribution and stats.** `Mlm::issueCode()`, `revokeCode()`, `recordScan()` / `recordScanFromRequest()`, `attributeSignup()` / `attributeSignupFromRequest()`, `assignSponsor()` and `stats()`, backed by a framework-free `FancyMlm\Attribution\ReferralProgram` over an `AttributionStore` port (Eloquent and in-memory implementations ship). Codes are 80-bit CSPRNG strings with a host-defined scope (an opaque string or a tuple), status and optional expiry. Scans store an HMAC-SHA256 session hash and only the context you pass: **never an IP, a user agent or a raw session id**. Attribution is first touch by default over a 30-day window, refuses self-referral and cycles, and ignores revoked or expired codes. Stats per code, scope or member over a range in two queries.
+- Three tables: `mlm_referral_codes`, `mlm_referral_scans`, `mlm_attributions`. Run `php artisan migrate`.
+- `php artisan mlm:prune-scans`, driven by `mlm.attribution.retention_days` (default 90). Schedule it.
+- `config/mlm.php` gains `attribution` and three `tables` entries. If you published the config, copy the new keys across; the defaults apply until you do.
+- A shared fixture, `tests/fixtures/referral-attribution.json`, carried byte-identically by `@particle-academy/fancy-mlm` and proposed for fancy-conformance.
+
+### Changed
+
+- **BREAKING — `mlm_members.sponsor_id` is now permanent.** Once set, changing or clearing it throws: `SponsorImmutable` from `Mlm::assignSponsor()` and from the `Member` model, and a `QueryException` from the database trigger the new migration installs (SQLite, MySQL/MariaDB, PostgreSQL). Setting it to the member's own id is refused the same way.
+
+  **What you must do:** if nothing in your app ever re-parents a member, nothing. If something does (an admin "move member" tool, a seeder that rewrites sponsors, a data fix), it will now fail; there is deliberately no bypass. Fix data before migrating, or remove the code path. If your database user cannot create triggers, set `mlm.attribution.database_guard` to `false` before `php artisan migrate`; the code guards still apply.
+
 ## 0.3.0 — 2026-08-07
 
 ### Changed

@@ -101,6 +101,113 @@ the listener, so a bonus never re-triggers the loop (recursion guard).
 Tiers map naturally onto **fms feature groups**, and a tier's scaling cap onto an
 **fms resource-feature limit** (MAX-wins group overrides) — see the design doc.
 
+## Referral codes, scans and attribution
+
+Codes and links, scan and click logging, scan-to-signup attribution with a
+**permanent** sponsor, and conversion stats. Privacy-first by default.
+
+```php
+use FancyMlm\Laravel\Facades\Mlm;
+
+// A member can hold many codes. The scope is yours: an opaque string, or a
+// tuple that is encoded into one. The package gives it no meaning.
+$code = Mlm::issueCode($memberId, 'spring-campaign');
+$code = Mlm::issueCode($memberId, ['region-7', 'team-12'], expiresAt: now()->addMonths(3)->toDateTimeImmutable());
+
+// Your route, your URL shape:
+Route::get('/r/{code}', function (Request $request, string $code) {
+    Mlm::recordScanFromRequest($request, $code);   // recorded | duplicate | code_inactive | unknown_code
+    return redirect('/register');
+})->middleware('throttle:referral-scans');
+
+// After the new user and member exist:
+$decision = Mlm::attributeSignupFromRequest($request, (string) $member->id);
+// $decision->attributed, ->sponsorMemberId, ->code, ->reason
+
+// Stats per code, scope or member over [from, to):
+Mlm::stats('code', $from, $to, ['member' => (string) $member->id]);
+```
+
+**Codes** are 16 characters from the CSPRNG over a 32-letter alphabet (digits
+and lowercase letters without i, l, o, u): 80 bits, so they cannot be guessed.
+Lookups are case-insensitive. Each code is `active` or `revoked`, with an
+optional expiry. `Mlm::revokeCode($code)` stops it recording or attributing.
+
+**What a scan stores:** the code, its owner and scope, the time, an HMAC-SHA256
+of a session token under a secret key, and any `$context` you pass. **Never an
+IP address, a user agent or a raw session id**; the table has no column for
+them. The key is `MLM_SESSION_HASH_KEY`, or a sub-key derived from `APP_KEY`;
+with neither, hashing refuses to run. Rotating the key breaks dedupe and
+attribution for sessions already in flight.
+
+> **If you put an IP or user agent in `$context` yourself**, the scans table
+> holds personal data (GDPR and similar laws treat both as such), your
+> retention setting becomes a legal obligation, and you need a lawful basis to
+> collect it. The package will store what you hand it; it will never fetch it.
+
+The Laravel helpers hash a random token kept **inside** the session rather than
+the session id, because `Auth::login()` migrates the id and would break the
+link between a scan and the signup that follows it. On a stateless route, pass
+your own opaque visitor id to `Mlm::recordScan()` / `Mlm::attributeSignup()`.
+
+**Refreshes don't inflate counts.** A second scan of the same code from the same
+session within `dedupe_minutes` (default 30) is reported as `duplicate` and not
+stored.
+
+**Rate limiting is yours**, through Laravel's limiter. For example:
+
+```php
+RateLimiter::for('referral-scans', fn (Request $request) => [
+    Limit::perMinute(60)->by('code:'.$request->route('code')),
+    Limit::perMinute(20)->by('session:'.$request->session()->getId()),
+]);
+```
+
+(Limiting by IP keeps the IP in your cache for the decay period; that is your
+call, and nothing in this package stores it.)
+
+### Attribution
+
+A signup is attributed to a scan by the same session within `window_days`
+(default 30) before it. `model` is `first_touch` (default) or `last_touch`.
+
+**Why first touch by default:** the sponsor is permanent, so the model decides
+who owns a member for good. First touch credits whoever actually introduced the
+prospect, a later link cannot snipe that introduction, and the answer for a
+session does not change as more scans arrive.
+
+The code must still be active and unexpired **at signup**: a code revoked or
+expired between scan and signup attributes nothing. The code's owner cannot be
+the new member (`self_referral`) or anyone in their downline (`cycle`). If the
+preferred scan is ineligible, the next one in policy order is tried. Calling
+attribution twice is safe: the second call returns the first result.
+
+### The sponsor is permanent
+
+`sponsor_id` can go from null to a member once. After that, any change or
+clear fails loudly, at three layers:
+
+| Layer | Refuses with |
+|---|---|
+| `Mlm::assignSponsor()` / the program | `SponsorImmutable`, `SelfReferral`, `SponsorCycle` |
+| The `Member` model (`$member->update(...)`) | `SponsorImmutable`, `SelfReferral` |
+| The database (query builder, raw SQL, other apps) | a `QueryException` whose message starts `fancy-mlm: sponsor_id` |
+
+The database layer is a `BEFORE UPDATE` trigger: `RAISE(ABORT)` on SQLite,
+`SIGNAL SQLSTATE '45000'` on MySQL/MariaDB, a plpgsql function on PostgreSQL
+11+. Other drivers get no trigger and rely on the code layers. If your database
+user cannot create triggers, set `mlm.attribution.database_guard` to `false`
+before migrating; the code layers still apply.
+
+### Retention
+
+```php
+Schedule::command('mlm:prune-scans')->daily();   // deletes scans older than retention_days (default 90)
+```
+
+The command refuses a retention shorter than the attribution window, since a
+pruned scan cannot attribute. Attributions are kept when scans are pruned.
+
 ## Data model
 
 `mlm_members` carries two parent pointers so one schema serves every tree type:

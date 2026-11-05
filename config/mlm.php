@@ -9,6 +9,47 @@ return [
 
     'tables' => [
         'members' => 'mlm_members',
+        'referral_codes' => 'mlm_referral_codes',
+        'referral_scans' => 'mlm_referral_scans',
+        'attributions' => 'mlm_attributions',
+    ],
+
+    /*
+    | Referral codes, scan logging and scan-to-signup attribution.
+    |
+    | Privacy: a scan stores the code, a keyed HMAC of a session token, the time
+    | and only the context YOU pass. No IP, no user agent, no raw session id.
+    | If you put either in a scan's context yourself, the scans table becomes
+    | personal data and `retention_days` becomes a legal obligation.
+    */
+    'attribution' => [
+        // 'first_touch' (default: the first introduction wins and cannot be
+        // sniped by a later link) or 'last_touch'.
+        'model' => env('MLM_ATTRIBUTION_MODEL', 'first_touch'),
+
+        // A scan attributes a signup made within this many days of it.
+        'window_days' => (int) env('MLM_ATTRIBUTION_WINDOW_DAYS', 30),
+
+        // Repeat scans of one code from one session inside this window are not
+        // stored, so refreshes do not inflate counts.
+        'dedupe_minutes' => (int) env('MLM_SCAN_DEDUPE_MINUTES', 30),
+
+        // `php artisan mlm:prune-scans` deletes scans older than this. Must be
+        // at least `window_days`: a pruned scan cannot attribute. null = keep.
+        'retention_days' => env('MLM_SCAN_RETENTION_DAYS', 90),
+
+        // Generated code length: 12 to 64 characters of a 32-letter alphabet
+        // (5 bits each). 16 = 80 bits.
+        'code_length' => 16,
+
+        // HMAC key for session hashes. Empty = derived from APP_KEY. Rotating
+        // either breaks dedupe and attribution for sessions already in flight.
+        'session_key' => env('MLM_SESSION_HASH_KEY'),
+
+        // Install a database trigger that refuses any change to a set
+        // sponsor_id (SQLite, MySQL/MariaDB, PostgreSQL). Turn off only if your
+        // database user cannot create triggers; the model guard still applies.
+        'database_guard' => true,
     ],
 
     /*
