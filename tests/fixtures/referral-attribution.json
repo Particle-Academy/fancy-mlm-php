@@ -32,6 +32,9 @@
     { "id": "0205-code-ceiling", "fn": "normalizeCode", "title": "Sixty-four characters is accepted", "input": { "code": "0123456789abcdefghjkmnpqrstvwxyz0123456789abcdefghjkmnpqrstvwxyz" }, "expected": { "code": "0123456789abcdefghjkmnpqrstvwxyz0123456789abcdefghjkmnpqrstvwxyz" } },
     { "id": "0206-code-over-ceiling", "fn": "normalizeCode", "title": "Sixty-five characters is refused", "input": { "code": "0123456789abcdefghjkmnpqrstvwxyz0123456789abcdefghjkmnpqrstvwxyz0" }, "expected": { "code": null } },
     { "id": "0207-code-url-junk", "fn": "normalizeCode", "title": "Anything outside the alphabet, such as a path or query, is refused rather than stripped", "input": { "code": "abcdefgh2345/../x" }, "expected": { "code": null } },
+    { "id": "0208-code-kelvin-sign", "fn": "normalizeCode", "title": "Lowercasing is ASCII-only: KELVIN SIGN (U+212A) is not k", "input": { "code": "Kbcdefgh2345678" }, "expected": { "code": null }, "notes": "JavaScript toLowerCase() maps U+212A to ASCII k, so a port using it accepts a code PHP strtolower() refuses." },
+    { "id": "0209-code-nbsp-not-trimmed", "fn": "normalizeCode", "title": "Trimming is PHP trim(): a no-break space is not whitespace to strip", "input": { "code": " abcdefgh23456789" }, "expected": { "code": null }, "notes": "JavaScript trim() strips U+00A0; PHP trim() strips only space, tab, LF, CR, NUL and vertical tab." },
+    { "id": "0210-code-ascii-whitespace-trimmed", "fn": "normalizeCode", "title": "Tab and newline are trimmed", "input": { "code": "\tabcdefgh23456789\n" }, "expected": { "code": "abcdefgh23456789" } },
 
     { "id": "0301-first-touch-single", "fn": "decide", "title": "One scan in the window attributes its code's owner",
       "input": { "policy": { "model": "first_touch", "windowSeconds": 2592000 }, "memberId": "new", "signupAt": "2026-11-04T12:00:00Z", "sponsors": {},

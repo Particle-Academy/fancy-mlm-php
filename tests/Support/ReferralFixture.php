@@ -28,7 +28,7 @@ use InvalidArgumentException;
 final class ReferralFixture
 {
     /** SHA-256 of the fixture with CRLF folded to LF. Must match the JS twin's constant. */
-    public const SHA256 = 'b32b20b97a1cba6d831ec5558b54eda1328a0e33597b73979ed864f1cf1a4d21';
+    public const SHA256 = '4a79b16adf4307a97628d0193c83535097778a1996ea9e4e1983d60664fb7750';
 
     public static function path(): string
     {
