@@ -256,8 +256,22 @@ and then update, and they would leave exactly the audit trail this is for.
 Someone with DDL rights can drop the triggers. No trigger can stop that, and
 MySQL's `TRUNCATE` bypasses triggers too.
 
-SQLite is what this package's suite runs. The MySQL/MariaDB and PostgreSQL
-triggers follow the same rule, but the suite does not run them.
+SQLite is what this package's suite runs. The MySQL/MariaDB triggers follow the
+same rule, but the suite does not run them. The PostgreSQL triggers were proved
+on PostgreSQL 17 by two consumers, through the published migrations:
+- updating a sponsor, or setting it to null, is refused and the value is unchanged;
+- `correctSponsor()` by an authorised admin writes exactly one correction row;
+- corrections refuse `UPDATE`, `DELETE` and `TRUNCATE`;
+- with `database_guard` off, those tests go red.
+
+**On PostgreSQL, a refused statement aborts the surrounding transaction.** Every
+statement after it fails with SQLSTATE 25P02 until the transaction rolls back. So:
+- **In tests that use `RefreshDatabase`**, run the statement you expect to be
+  refused inside its own `DB::transaction(...)` and catch the `QueryException`.
+  The nested transaction is a savepoint, so only it rolls back. Without it, every
+  later query in the test fails, and it looks as if the trigger is broken.
+- **In app code**, a caller that catches the refusal and carries on in the same
+  transaction must roll back to a savepoint first.
 
 ### Retention
 

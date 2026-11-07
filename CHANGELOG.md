@@ -15,6 +15,18 @@ upgrading.
 
 ## [Unreleased]
 
+### Changed
+
+- **README: the PostgreSQL triggers are proved, and the 25P02 trap is documented.**
+  Two consumers ran the published migrations on PostgreSQL 17 and confirmed:
+  - a refused sponsor update leaves the value unchanged;
+  - an authorised correction writes exactly one row;
+  - corrections refuse `UPDATE`, `DELETE` and `TRUNCATE`.
+
+  The README now explains that a refused statement aborts the surrounding transaction
+  on PostgreSQL, and how to use a savepoint in tests and app code. Docs only.
+  **Consumer action:** none.
+
 ## [0.5.0] - 2026-11-04
 
 ### Added
