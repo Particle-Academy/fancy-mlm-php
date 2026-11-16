@@ -26,6 +26,7 @@ upgrading.
   The README now explains that a refused statement aborts the surrounding transaction
   on PostgreSQL, and how to use a savepoint in tests and app code. Docs only.
   **Consumer action:** none.
+- Rebranded the display name to Fancy Dev Kit (README and package description). Package names, the npm scope, URLs and the `fancy-ui` MCP id are unchanged.
 
 ## [0.5.0] - 2026-11-04
 
