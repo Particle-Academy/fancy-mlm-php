@@ -268,7 +268,7 @@ describe('retention', function () {
         Mlm::recordScan($code, 'old', [], now()->subDays(90)->toDateTimeImmutable());
         Mlm::recordScan($code, 'recent', [], now()->subDays(5)->toDateTimeImmutable());
 
-        $this->artisan('mlm:prune-scans')->assertExitCode(0);
+        expect($this->artisan('mlm:prune-scans'))->toBe(0);
 
         expect(ReferralScan::query()->count())->toBe(1);
     });
@@ -276,6 +276,6 @@ describe('retention', function () {
     it('refuses to prune inside the attribution window', function () {
         config(['mlm.attribution.retention_days' => 7, 'mlm.attribution.window_days' => 30]);
 
-        $this->artisan('mlm:prune-scans')->assertExitCode(1);
+        expect($this->artisan('mlm:prune-scans'))->toBe(1);
     });
 });

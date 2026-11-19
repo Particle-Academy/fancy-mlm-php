@@ -17,6 +17,7 @@ upgrading.
 
 ### Changed
 
+- Tests moved to Pest 5; `orchestra/testbench` and `phpunit/phpunit` removed from `require-dev`. The bridge and migration suites boot a hand-built Laravel app (`tests/Laravel/TestCase.php`) on in-memory SQLite. `laravel/framework` is now a direct dev dependency, under the integration-framework carve-out (it used to arrive through testbench). No runtime change; nothing to do.
 - **README: the PostgreSQL triggers are proved, and the 25P02 trap is documented.**
   Two consumers ran the published migrations on PostgreSQL 17 and confirmed:
   - a refused sponsor update leaves the value unchanged;

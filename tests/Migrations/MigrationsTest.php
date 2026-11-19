@@ -37,12 +37,12 @@ function sponsorTriggerSql(): string
 }
 
 it('migrates up, down and up again, taking the sponsor guard with it', function () {
-    $this->artisan('migrate')->assertExitCode(0);
+    expect($this->artisan('migrate'))->toBe(0);
     expect(Schema::hasTable('mlm_referral_scans'))->toBeTrue();
     expect(Schema::hasTable('mlm_sponsor_corrections'))->toBeTrue();
     expect(sponsorTriggers())->not->toBeEmpty();
 
-    $this->artisan('migrate:rollback', ['--step' => 6])->assertExitCode(0);
+    expect($this->artisan('migrate:rollback', ['--step' => 6]))->toBe(0);
     expect(Schema::hasTable('mlm_referral_codes'))->toBeFalse();
     expect(Schema::hasTable('mlm_referral_scans'))->toBeFalse();
     expect(Schema::hasTable('mlm_attributions'))->toBeFalse();
@@ -57,21 +57,21 @@ it('migrates up, down and up again, taking the sponsor guard with it', function 
     DB::table('mlm_members')->where('id', $m->id)->update(['sponsor_id' => $b->id]);
     DB::table('mlm_members')->where('id', $m->id)->update(['sponsor_id' => $a->id]);
 
-    $this->artisan('migrate')->assertExitCode(0);
+    expect($this->artisan('migrate'))->toBe(0);
     expect(sponsorTriggers())->not->toBeEmpty();
     expect(fn () => DB::table('mlm_members')->where('id', $m->id)->update(['sponsor_id' => $b->id]))
         ->toThrow(QueryException::class, 'sponsor_id is permanent');
 
-    $this->artisan('migrate:rollback', ['--step' => 7])->assertExitCode(0);
+    expect($this->artisan('migrate:rollback', ['--step' => 7]))->toBe(0);
     expect(Schema::hasTable('mlm_members'))->toBeFalse();
 });
 
 it('rolls the correction migrations back to the 0.4.0 guard, and forward again', function () {
-    $this->artisan('migrate')->assertExitCode(0);
+    expect($this->artisan('migrate'))->toBe(0);
     expect(sponsorTriggerSql())->toContain('mlm_sponsor_corrections');
     expect(triggersOn('mlm_sponsor_corrections'))->toHaveCount(2);
 
-    $this->artisan('migrate:rollback', ['--step' => 2])->assertExitCode(0);
+    expect($this->artisan('migrate:rollback', ['--step' => 2]))->toBe(0);
     expect(Schema::hasTable('mlm_sponsor_corrections'))->toBeFalse();
     expect(sponsorTriggers())->toHaveCount(1);
     expect(sponsorTriggerSql())->not->toContain('mlm_sponsor_corrections');
@@ -83,7 +83,7 @@ it('rolls the correction migrations back to the 0.4.0 guard, and forward again',
     expect(fn () => DB::table('mlm_members')->where('id', $m->id)->update(['sponsor_id' => $b->id]))
         ->toThrow(QueryException::class, 'sponsor_id is permanent');
 
-    $this->artisan('migrate')->assertExitCode(0);
+    expect($this->artisan('migrate'))->toBe(0);
     expect(sponsorTriggerSql())->toContain('mlm_sponsor_corrections');
     expect(triggersOn('mlm_sponsor_corrections'))->toHaveCount(2);
     expect(fn () => DB::table('mlm_members')->where('id', $m->id)->update(['sponsor_id' => $b->id]))
@@ -93,7 +93,7 @@ it('rolls the correction migrations back to the 0.4.0 guard, and forward again',
 it('skips the database guard when the host turns it off, leaving the code guard', function () {
     config(['mlm.attribution.database_guard' => false]);
 
-    $this->artisan('migrate')->assertExitCode(0);
+    expect($this->artisan('migrate'))->toBe(0);
 
     expect(sponsorTriggers())->toBeEmpty();
     expect(Schema::hasTable('mlm_sponsor_corrections'))->toBeTrue();
@@ -105,6 +105,6 @@ it('skips the database guard when the host turns it off, leaving the code guard'
     expect(fn () => $m->update(['sponsor_id' => $b->id]))
         ->toThrow(FancyMlm\Attribution\Exceptions\SponsorImmutable::class);
 
-    $this->artisan('migrate:rollback', ['--step' => 7])->assertExitCode(0);
+    expect($this->artisan('migrate:rollback', ['--step' => 7]))->toBe(0);
     expect(Schema::hasTable('mlm_members'))->toBeFalse();
 });
