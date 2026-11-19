@@ -34,7 +34,7 @@ composer require particle-academy/fancy-mlm
 ```
 
 The **core requires zero framework**. The Laravel bridge auto-registers via
-package discovery when you're on Laravel 11–13.
+package discovery when you're on Laravel 13 (the minimum; an older Laravel is refused).
 
 ## Plain PHP (framework-agnostic core)
 

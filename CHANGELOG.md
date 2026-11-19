@@ -17,6 +17,9 @@ upgrading.
 
 ### Changed
 
+- **BREAKING:** Laravel 13 is the minimum; an app on Laravel 12 or older can no longer install this; upgrade Laravel. On Laravel 13, or without Laravel at all, do nothing.
+- composer.json now declares `conflict: laravel/framework <13.0, illuminate/support <13.0`; the core stays framework-free. The package description, the `illuminate/support` suggest and the README no longer claim Laravel 11-12 support.
+
 - Tests moved to Pest 5; `orchestra/testbench` and `phpunit/phpunit` removed from `require-dev`. The bridge and migration suites boot a hand-built Laravel app (`tests/Laravel/TestCase.php`) on in-memory SQLite. `laravel/framework` is now a direct dev dependency, under the integration-framework carve-out (it used to arrive through testbench). No runtime change; nothing to do.
 - **README: the PostgreSQL triggers are proved, and the 25P02 trap is documented.**
   Two consumers ran the published migrations on PostgreSQL 17 and confirmed:

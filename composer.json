@@ -1,6 +1,6 @@
 {
     "name": "particle-academy/fancy-mlm",
-    "description": "Framework-agnostic multi-level referral / network-marketing engine for agentic apps. Pure PHP core with an optional Laravel 11-13 bridge and fun-lab / catalog / fms integration.",
+    "description": "Framework-agnostic multi-level referral / network-marketing engine for agentic apps. Pure PHP core with an optional Laravel 13 bridge and fun-lab / catalog / fms integration.",
     "type": "library",
     "license": "MIT",
     "keywords": [
@@ -31,10 +31,14 @@
         "pestphp/pest": "^5.0"
     },
     "suggest": {
-        "illuminate/support": "Only needed when using the optional Laravel service provider, facade, models, and fun-lab listener. Compatible with 11.x through 13.x. The core FancyMlm engine requires zero framework.",
+        "illuminate/support": "Only needed when using the optional Laravel service provider, facade, models, and fun-lab listener. Needs ^13.0 (Laravel 13+). The core FancyMlm engine requires zero framework.",
         "particle-academy/laravel-fun-lab": "Enables the gamified referral loop — award upline members when a referral acts.",
         "particle-academy/laravel-catalog": "Anchors monetary commissions to real catalog sales (Cashier webhooks + Stripe metadata).",
         "particle-academy/laravel-fms": "Models referral tiers as feature groups and scales bonus caps via resource-feature limits."
+    },
+    "conflict": {
+        "laravel/framework": "<13.0",
+        "illuminate/support": "<13.0"
     },
     "autoload": {
         "psr-4": {
